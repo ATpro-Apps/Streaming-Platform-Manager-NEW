@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Streaming Platform Manager</title>
+  <style>
+    :root{
+      --bg:#f7f7fb;
+      --panel:#ffffff;
+      --accent:#d62828; /* netflix-like red */
+      --muted:#6b7280;
+      --good:#16a34a;
+      --bad:#dc2626;
+      --card-shadow: 0 6px 18px rgba(15,23,42,0.06);
+      --glass: linear-gradient(180deg, rgba(255,255,255,0.8), rgba(255,255,255,0.98));
+      --radius:12px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    html,body{height:100%;margin:0;background:var(--bg);color:#111}
+    .app {
+      max-width:1200px;
+      margin:20px auto;
+      padding:20px;
+      display:grid;
+      grid-template-columns: 1fr 360px;
+      gap:18px;
+      align-items:start;
+    }
+
+    header{
+      grid-column:1/3;
+      display:flex;
+      align-items:center;
+      gap:16px;
+    }
+    header img.logo{height:64px;width:64px;border-radius:8px;object-fit:cover;box-shadow:var(--card-shadow)}
+    header h1{margin:0;font-size:20px;color:var(--accent);letter-spacing:0.5px}
+
+    /* Menu / screens */
+    .screen { background:var(--panel); border-radius:var(--radius); box-shadow:var(--card-shadow); padding:14px; }
+    .menu { display:flex; gap:12px; align-items:center; justify-content:space-between; }
+    .menu .left { display:flex; gap:12px; align-items:center; }
+    .menu button { background:var(--accent); color:#fff; border:none; padding:10px 12px; border-radius:8px; cursor:pointer; font-weight:600; }
+    .menu .small { background:transparent; border:1px solid #eee; padding:8px 10px; color:var(--muted); font-weight:600; cursor:pointer; }
+
+    /* layout left column */
+    .main-panel { display:flex; flex-direction:column; gap:12px; }
+    .row { display:flex; gap:12px; align-items:center; }
+    .panel { padding:12px; border-radius:10px; background:var(--panel); box-shadow:var(--card-shadow); }
+
+    .stats { display:flex; gap:12px; }
+    .stat { flex:1; padding:12px; border-radius:8px; background:linear-gradient(180deg,#fff,#fbfbff); text-align:center; }
+    .stat h4{margin:0;font-size:12px;color:var(--muted)}
+    .stat p{margin:6px 0 0;font-size:18px;font-weight:700}
+
+    /* fixed table styles to avoid shifting */
+    table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    th,td { padding:8px 10px; border-bottom:1px solid #eef2f7; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+    th { text-align:left; color:var(--muted); font-weight:700; font-size:12px; }
+
+    .content-table th:nth-child(1){width:35%}
+    .content-table th:nth-child(2){width:18%}
+    .content-table th:nth-child(3){width:18%}
+    .content-table th:nth-child(4){width:18%}
+    .content-table th:nth-child(5){width:11%}
+
+    /* bar for market share */
+    .bar-wrap { background:#f1f5f9;border-radius:8px;height:20px;display:block;position:relative;overflow:hidden; }
+    .bar-fill { height:100%; text-align:right; padding-right:6px; font-weight:700; font-size:12px; color:#fff; background:linear-gradient(90deg,var(--accent),#ff6b6b); }
+
+    /* right column */
+    .right-column { display:flex; flex-direction:column; gap:12px; position:relative; }
+
+    .controls label{font-size:13px;color:var(--muted)}
+    .controls input[type="text"], .controls input[type="number"], .controls select {
+      width:100%; padding:8px; border-radius:8px; border:1px solid #e6e9ef; margin-top:6px;
+    }
+
+    .btn { padding:8px 10px; border-radius:8px; border:none; cursor:pointer; font-weight:700 }
+    .btn-ghost { background:transparent; border:1px solid #e6e9ef; color:var(--muted) }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .tiny { padding:6px 8px; font-size:13px }
+
+    /* news feed */
+    .news { max-height:180px; overflow:auto; padding:8px; display:flex; flex-direction:column; gap:8px; }
+    .news .item { background:linear-gradient(90deg,#fff,#fcfcff); padding:8px; border-radius:8px; border:1px solid #f0f2f7; font-size:13px; }
+
+    footer { grid-column:1/3; text-align:center; color:var(--muted); font-size:13px; margin-top:8px; }
+
+    /* responsiveness */
+    @media (max-width:1000px){
+      .app { grid-template-columns: 1fr; padding:12px }
+      header img.logo{height:56px;width:56px}
+    }
+
+    /* colored genre badges */
+    .genre-badge { display:inline-flex; align-items:center; gap:6px; padding:6px 8px; border-radius:999px; font-weight:700; font-size:13px }
+    .g-drama{background:#ffe8e8;color:#b02a2a}
+    .g-anime{background:#eef2ff;color:#1e5bff}
+    .g-comedy{background:#fff7e6;color:#d97706}
+    .g-sci{background:#e9f7f3;color:#0f8f6e}
+    .g-action{background:#fff0f6;color:#9f1239}
+    .g-doc{background:#f3f4f6;color:#374151}
+    .g-thr{background:#fef3c7;color:#92400e}
+    .muted { color:var(--muted) }
+    .positive{color:var(--good)}
+    .negative{color:var(--bad)}
+  </style>
+</head>
+<body>
+  <div class="app">
+
+    <header>
+      <img src="SPM_logo.png" class="logo" alt="SPM logo" onerror="this.style.display='none'">
+      <h1>Streaming Platform Manager</h1>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <button id="btnMenu" class="btn tiny btn-ghost">Main Menu</button>
+        <button id="btnSave" class="btn tiny">Save</button>
+        <button id="btnLoad" class="btn tiny btn-ghost">Load</button>
+      </div>
+    </header>
+
+    <!-- LEFT: game area -->
+    <div class="main-panel">
+
+      <!-- MAIN MENU SCREEN -->
+      <div id="menuScreen" class="screen" style="display:block;">
+        <div class="menu">
+          <div class="left">
+            <div>
+              <h2 style="margin:0">Main Menu</h2>
+              <div style="font-size:13px;color:var(--muted)">Pick options & difficulty, then Start</div>
+            </div>
+          </div>
+          <div>
+            <img src="SPM_logo.png" alt="logo" style="height:48px;border-radius:8px" onerror="this.style.display='none'">
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:12px">
+          <div style="flex:1" class="panel controls">
+            <label>Company Name
+              <input id="inputCompany" type="text" placeholder="Your Company (e.g., WatchFlex)">
+            </label>
+
+            <label style="margin-top:8px">Difficulty
+              <select id="selectDifficulty">
+                <option value="easy">Easy (5M cash)</option>
+                <option value="medium" selected>Medium (1M cash)</option>
+                <option value="hard">Hard (100k cash)</option>
+              </select>
+            </label>
+
+            <label style="margin-top:8px">Starting Scenario (win condition)
+              <select id="selectScenario">
+                <option value="subs_30m">30M monthly income</option>
+                <option value="cash_1b">1B cash reserve</option>
+                <option value="subs_1m">1M subscribers</option>
+              </select>
+            </label>
+
+            <label style="margin-top:8px">Subscription Model
+              <select id="selectModel">
+                <option value="single">Single Plan</option>
+                <option value="dual" selected>Ad-supported + Premium</option>
+              </select>
+            </label>
+
+            <label style="margin-top:8px">Monthly Fee (base for premium) $
+              <input id="inputMonthlyFee" type="number" value="15">
+            </label>
+
+            <label style="margin-top:8px">Content Cap (active licenses)
+              <input id="inputContentCap" type="number" value="8">
+            </label>
+
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <button id="btnStart" class="btn btn-primary">Start Game</button>
+              <button id="btnCredits" class="btn btn-ghost">Credits</button>
+            </div>
+          </div>
+
+          <div style="width:360px;display:flex;flex-direction:column;gap:8px">
+            <div class="panel" style="flex:1">
+              <h3 style="margin:0 0 8px 0">Region Trends (quick)</h3>
+              <div id="regionTrends">
+                <!-- generated by JS -->
+              </div>
+              <div style="margin-top:8px;font-size:12px;color:var(--muted)">Use Market Research in-game to reveal exact demand values.</div>
+            </div>
+
+            <div class="panel">
+              <h3 style="margin:0 0 8px 0">Difficulty notes</h3>
+              <div style="font-size:13px;color:var(--muted)">
+                Easy = big starting cash. Hard = tight budget. Try campaigns & hosting investments to stabilize growth.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GAME SCREEN -->
+      <div id="gameScreen" class="screen" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <div>
+            <h2 id="companyHeader" style="margin:0">My Company</h2>
+            <div id="subHeader" style="font-size:13px;color:var(--muted)">Year 1 • Month 1</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button id="btnMenuFromGame" class="btn btn-ghost tiny">Go to Menu</button>
+            <button id="btnOpenSettings" class="btn tiny btn-ghost">Settings</button>
+            <button id="btnEndTurn" class="btn btn-primary tiny">Next Turn</button>
+          </div>
+        </div>
+
+        <div class="stats" style="margin-top:12px">
+          <div class="stat">
+            <h4>Cash</h4>
+            <p id="statCash">$0</p>
+            <div style="font-size:12px;color:var(--muted)">Available funds</div>
+          </div>
+          <div class="stat">
+            <h4>Subscribers</h4>
+            <p id="statSubs">0</p>
+            <div style="font-size:12px;color:var(--muted)">Total subscribers</div>
+          </div>
+          <div class="stat">
+            <h4>Monthly Income</h4>
+            <p id="statIncome">$0</p>
+            <div style="font-size:12px;color:var(--muted)">Subscription revenue</div>
+          </div>
+          <div class="stat">
+            <h4>Expenses</h4>
+            <p id="statExpenses">$0</p>
+            <div style="font-size:12px;color:var(--muted)">Monthly costs</div>
+          </div>
+        </div>
+
+        <!-- Content & market -->
+        <div style="display:flex;gap:12px;margin-top:12px;align-items:flex-start">
+          <div style="flex:1" class="panel">
+            <h3 style="margin:0 0 8px 0">Available Licenses / Production</h3>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:8px">Buy content to grow genres you need. Content ages — retire when expired.</div>
+            <table class="content-table" id="contentTable">
+              <!-- generated -->
+            </table>
+
+            <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+              <button id="btnInvestAds" class="btn tiny btn-ghost">Invest in Ads</button>
+              <button id="btnInvestHosting" class="btn tiny btn-ghost">Improve Hosting</button>
+              <button id="btnProduce" class="btn tiny btn-ghost">Produce Original (costly)</button>
+              <button id="btnMarketResearch" class="btn tiny btn-ghost">Market Research ($)</button>
+            </div>
+          </div>
+
+          <div style="width:360px;display:flex;flex-direction:column;gap:12px">
+            <div class="panel">
+              <h4 style="margin:0 0 8px 0">Finances</h4>
+              <table id="financeTable"><tr><th>Type</th><th>Amount</th></tr></table>
+            </div>
+
+            <div class="panel">
+              <h4 style="margin:0 0 8px 0">Market Share</h4>
+              <table id="marketTable"></table>
+            </div>
+
+            <div class="panel">
+              <h4 style="margin:0 0 8px 0">News Feed</h4>
+              <div class="news" id="newsFeed"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Player content overview -->
+        <div class="panel" style="margin-top:12px">
+          <h4 style="margin:0 0 8px 0">Your Content Library</h4>
+          <table id="libraryTable"></table>
+        </div>
+
+      </div>
+
+      <!-- CREDITS -->
+      <div id="creditsScreen" class="screen" style="display:none">
+        <h3>Credits</h3>
+        <div style="font-size:14px;color:var(--muted)">Developed by: <strong>Your Name</strong></div>
+        <p style="margin-top:12px">Thanks for playing — this is a prototype. Save/Load stored locally.</p>
+        <div style="margin-top:12px"><button id="btnBackFromCredits" class="btn btn-ghost">Back</button></div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: controls & settings -->
+    <aside class="right-column">
+      <div class="panel">
+        <h4 style="margin:0 0 8px 0">Quick Controls</h4>
+        <div style="display:flex;gap:8px">
+          <button id="btnQuickSave" class="btn tiny btn-primary">Save</button>
+          <button id="btnQuickLoad" class="btn tiny btn-ghost">Load</button>
+          <button id="btnReset" class="btn tiny btn-ghost">Reset</button>
+        </div>
+        <hr style="margin:8px 0">
+        <div style="display:flex;gap:8px;align-items:center">
+          <label class="muted">Sound</label>
+          <input id="toggleSound" type="checkbox" checked>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h4 style="margin:0 0 8px 0">Competitors</h4>
+        <div id="competitorsList" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+
+      <div class="panel">
+        <h4 style="margin:0 0 8px 0">Settings</h4>
+        <label>Month speed (ms) <input id="inputTickMs" type="number" value="0" min="0"></label>
+        <div style="margin-top:8px">
+          <button id="btnAutoPlay" class="btn btn-ghost tiny">Autoplay (Off)</button>
+        </div>
+      </div>
+    </aside>
+
+    <footer class="muted">Streaming Platform Manager • Prototype</footer>
+  </div>
+
+  <audio id="bgMusic" loop>
+    <source src="" />
+  </audio>
+
+  <script>
+    /**********************
+     * CONFIG / UTIL
+     **********************/
+    const CONFIG = {
+      GENRES: {
+        'Drama': { cost: 400000, icon:'🎬', css:'g-drama'},
+        'Anime': { cost: 350000, icon:'🌀', css:'g-anime'},
+        'Comedy': { cost: 250000, icon:'😂', css:'g-comedy'},
+        'Science Fiction': { cost: 700000, icon:'🛰️', css:'g-sci'},
+        'Action': { cost: 1000000, icon:'💥', css:'g-action'},
+        'Documentary': { cost: 200000, icon:'📚', css:'g-doc'},
+        'Thriller': { cost: 500000, icon:'🔪', css:'g-thr'}
+      },
+      REGIONS: {
+        'Europe': {'Drama':30,'Action':10,'Comedy':15,'Anime':5,'Documentary':30,'Thriller':10,'Science Fiction':0},
+        'USA': {'Drama':20,'Action':25,'Comedy':20,'Anime':5,'Documentary':10,'Thriller':15,'Science Fiction':5},
+        'Japan': {'Drama':10,'Action':5,'Comedy':10,'Anime':50,'Documentary':5,'Thriller':10,'Science Fiction':10}
+      },
+      STARTING: { easy:5000000, medium:1000000, hard:100000 },
+      MONTHS_PER_YEAR:12,
+      BASE_CHURN: 0.05, // 5% base churn
+      AD_INVEST_EFFECT: 0.001, // per $ invested effect on demand
+      HOSTING_EFFECT: 0.0005,
+      PRODUCE_MULT: 4, // produce multiplier reward potential
+    };
+
+    function uid(prefix='id'){ window._uidCounter = (window._uidCounter||0)+1; return prefix+window._uidCounter; }
+    function fmt(n){ return typeof n==='number' ? n.toLocaleString() : n; }
+    function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
+
+    /**********************
+     * GAME STATE
+     **********************/
+    let game = {
+      running:false,
+      year:1,
+      month:1,
+      monthCount:1,
+      player: {
+        name:'My Company',
+        cash:0,
+        subscribers:0,
+        contentLibrary:[], // {id, genre, cost, popularity, age, duration, produced:boolean}
+        fee:15,
+        contentCap:8,
+        adsInvested:0,
+        hostingLevel:0,
+        ad_model: { adSupported:true, adFee:7, premiumFee:15 } // if dual model
+      },
+      rivals: [],
+      pool: [],
+      news: [],
+      difficulty:'medium',
+      scenario:'subs_30m',
+      autoplay:false,
+      autoplayMs:0,
+      soundOn:true,
+      lastEventTick:0
+    };
+
+    /**********************
+     * INITIAL UTIL
+     **********************/
+    const $ = id => document.getElementById(id);
+
+    // initial region trend display on menu
+    function initRegionTrends(){
+      const container = $('regionTrends');
+      container.innerHTML = '';
+      for (const r in CONFIG.REGIONS){
+        const div = document.createElement('div');
+        div.style.marginBottom='8px';
+        div.innerHTML = `<strong>${r}</strong><div style="display:flex;gap:6px;margin-top:6px">`+Object.entries(CONFIG.REGIONS[r]).slice(0,4).map(([g,v])=>`<div style="min-width:0;flex:1"><div style="font-size:12px;color:var(--muted)">${g}</div><div class="bar-wrap"><div style="width:${v}%;" class="bar-fill">${v}%</div></div></div>`).join('')+`</div>`;
+        container.appendChild(div);
+      }
+    }
+    initRegionTrends();
+
+    /**********************
+     * START / MENU HANDLERS
+     **********************/
+    $('btnStart').addEventListener('click',()=>{
+      startNewGame();
+    });
+
+    $('btnCredits').addEventListener('click',()=>{
+      showOnly('creditsScreen');
+    });
+    $('btnBackFromCredits').addEventListener('click',()=>showOnly('menuScreen'));
+    $('btnMenu').addEventListener('click', ()=> showOnly('menuScreen'));
+    $('btnMenuFromGame').addEventListener('click', ()=> confirmReturnToMenu());
+
+    $('btnSave').addEventListener('click', saveGame);
+    $('btnLoad').addEventListener('click', loadGame);
+    $('btnQuickSave').addEventListener('click', saveGame);
+    $('btnQuickLoad').addEventListener('click', loadGame);
+    $('btnReset').addEventListener('click', () => { if(confirm('Reset all local saves?')){ localStorage.removeItem('spm_save'); location.reload(); }});
+
+    $('btnOpenSettings').addEventListener('click', () => {
+      const on = $('toggleSound').checked;
+      game.soundOn = on;
+      alert('Settings currently: sound ' + (on ? 'ON' : 'OFF'));
+    });
+
+    $('btnEndTurn').addEventListener('click', ()=> tickMonth());
+    $('btnInvestAds').addEventListener('click', ()=> investAds());
+    $('btnInvestHosting').addEventListener('click', ()=> investHosting());
+    $('btnProduce').addEventListener('click', ()=> produceOriginal());
+    $('btnMarketResearch').addEventListener('click', ()=> marketResearch());
+    $('btnAutoPlay').addEventListener('click', toggleAutoplay);
+
+    $('toggleSound').addEventListener('change', (e)=> game.soundOn = e.target.checked);
+
+    /**********************
+     * GAME FLOW
+     **********************/
+    function startNewGame(){
+      // read menu values
+      const name = $('inputCompany').value.trim() || 'My Company';
+      const difficulty = $('selectDifficulty').value;
+      const scenario = $('selectScenario').value;
+      const model = $('selectModel').value;
+      const fee = parseInt($('inputMonthlyFee').value) || 15;
+      const cap = parseInt($('inputContentCap').value) || 8;
+
+      // init player state
+      game = {
+        running:true,
+        year:1, month:1, monthCount:1,
+        player:{
+          name:name,
+          cash: CONFIG.STARTING[difficulty],
+          subscribers: Math.floor(CONFIG.STARTING[difficulty]/200), // a few starting subs
+          contentLibrary:[],
+          fee: fee,
+          contentCap: cap,
+          adsInvested:0,
+          hostingLevel:0,
+          ad_model: { adSupported: model==='dual', adFee:7, premiumFee:fee }
+        },
+        rivals: generateInitialRivals(3),
+        pool: [],
+        news: [],
+        difficulty:difficulty,
+        scenario:scenario,
+        autoplay:false,
+        autoplayMs: parseInt($('inputTickMs').value)||0,
+        soundOn: $('toggleSound').checked,
+        lastEventTick:0
+      };
+
+      // update UI
+      showOnly('gameScreen');
+      renderHeader();
+      generatePool();
+      updateAllUI();
+      logNews("Game started — good luck!");
+    }
+
+    function confirmReturnToMenu(){
+      if(!game.running || confirm('Return to Main Menu? Your current unsaved progress will be lost.')){
+        showOnly('menuScreen');
+        game.running=false;
+      }
+    }
+
+    function showOnly(id){
+      const screens=['menuScreen','gameScreen','creditsScreen'];
+      screens.forEach(s => $(s).style.display = (s===id ? 'block' : 'none'));
+    }
+
+    /**********************
+     * RIVALS / AI
+     **********************/
+    function generateInitialRivals(count=2){
+      const names = ['StreamFlix','BingeNow','WatchFlex','Viewly','PrimeScreen','MegaStream','CueBox','ShowHub'];
+      const rivals = [];
+      for(let i=0;i<count;i++){
+        const name = names[Math.floor(Math.random()*names.length)] + (Math.random()<0.3 ? Math.floor(Math.random()*99) : '');
+        rivals.push({
+          id:uid('riv'),
+          name,
+          subscribers: Math.floor(Math.random()*5000)+500,
+          contentLibrary: [],
+          adsInvested: Math.floor(Math.random()*20000),
+          hostingLevel: Math.floor(Math.random()*2),
+          strategy: Math.random()<0.5 ? 'popular' : 'niche' // strategy influences genre choices
+        });
+      }
+      return rivals;
+    }
+
+    function rivalsAct(){
+      // Each rival buys a license from pool or produces (simple)
+      game.rivals.forEach(r=>{
+        // decide to buy based on money (we don't simulate cash for rivals here), but pick a genre strategically
+        if(game.pool.length > 0 && Math.random()>0.3){
+          // smarter AI: pick genre with highest region demand
+          const preferred = pickGenreForRival(r);
+          const candidate = game.pool.find(p=>p.genre===preferred) || game.pool[Math.floor(Math.random()*game.pool.length)];
+          if(candidate){
+            r.contentLibrary.push({...candidate, owner:r.name});
+            // remove from pool
+            game.pool = game.pool.filter(x=>x.id!==candidate.id);
+          }
+        }
+        // grow subscribers for rival
+        let uniqueGenres = new Set(r.contentLibrary.map(c=>c.genre)).size;
+        let boost = 200 + uniqueGenres*100 + Math.floor(Math.random()*300) + Math.floor(r.adsInvested * 0.001);
+        r.subscribers += boost;
+      });
+
+      // sort rivals by subscribers desc for display
+      game.rivals.sort((a,b)=>b.subscribers - a.subscribers);
+    }
+
+    function pickGenreForRival(rival){
+      // pick genre based on region trend plus rival strategy
+      const region = Object.keys(CONFIG.REGIONS)[ Math.floor(Math.random()*Object.keys(CONFIG.REGIONS).length) ];
+      const weights = CONFIG.REGIONS[region];
+      // convert to array and pick weighted
+      const entries = Object.entries(weights);
+      let sum = entries.reduce((s,[_g,v])=>s+v,0);
+      let pick = Math.random()*sum;
+      for(const [g,v] of entries){
+        pick -= v;
+        if(pick <= 0) return g;
+      }
+      return entries[0][0];
+    }
+
+    /**********************
+     * POOL - available licenses
+     **********************/
+    function generatePool(){
+      game.pool = [];
+      const genreKeys = Object.keys(CONFIG.GENRES);
+      let count = Math.floor(Math.random()*3) + 4;
+      for(let i=0;i<count;i++){
+        const g = genreKeys[Math.floor(Math.random()*genreKeys.length)];
+        game.pool.push({
+          id: uid('pool'),
+          genre: g,
+          cost: CONFIG.GENRES[g].cost,
+          popularity: Math.floor(Math.random()*100)+40, // popularity metric
+          duration: Math.floor(Math.random()*24)+6 // license months
+        });
+      }
+    }
+
+    /**********************
+     * PLAYER ACTIONS
+     **********************/
+    function buyContentFromPool(poolId){
+      const c = game.pool.find(p=>p.id===poolId);
+      if(!c) return alert('Content no longer available.');
+      if(game.player.contentLibrary.length >= game.player.contentCap){
+        // retire oldest automatically
+        retireOldestContent();
+        logNews('Content cap reached — oldest content retired to free slot.');
+      }
+      if(game.player.cash < c.cost){ return alert('Not enough cash'); }
+      game.player.cash -= c.cost;
+      const item = {...c, age:0, produced:false, boughtAtMonth:game.monthCount};
+      game.player.contentLibrary.push(item);
+      // remove from pool
+      game.pool = game.pool.filter(x=>x.id!==c.id);
+      updateAllUI();
+    }
+
+    function retireOldestContent(){
+      if(game.player.contentLibrary.length===0) return;
+      // retire the one with max age (oldest)
+      let oldestIdx = 0;
+      let maxAge = -1;
+      game.player.contentLibrary.forEach((c,i)=>{ if(c.age>maxAge){ maxAge=c.age; oldestIdx=i; }});
+      const removed = game.player.contentLibrary.splice(oldestIdx,1)[0];
+      logNews(`Retired ${removed.genre} license (age ${removed.age} months).`);
+    }
+
+    function investAds(){
+      const cost = 50000;
+      if(game.player.cash < cost){ return alert('Not enough cash'); }
+      game.player.cash -= cost;
+      game.player.adsInvested += cost;
+      logNews('Invested $50,000 in advertising campaigns.');
+      updateAllUI();
+    }
+
+    function investHosting(){
+      const cost = 75000;
+      if(game.player.cash < cost){ return alert('Not enough cash'); }
+      game.player.cash -= cost;
+      game.player.hostingLevel += 1;
+      logNews('Upgraded hosting (better performance & less churn).');
+      updateAllUI();
+    }
+
+    function produceOriginal(){
+      const cost = 1000000;
+      if(game.player.cash < cost) return alert('Not enough cash for producing original');
+      if(game.player.contentLibrary.length >= game.player.contentCap) retireOldestContent();
+      game.player.cash -= cost;
+      // produced content is expensive but has high popularity and long duration
+      const gkeys = Object.keys(CONFIG.GENRES);
+      const g = gkeys[Math.floor(Math.random()*gkeys.length)];
+      const item = { id:uid('prod'), genre:g, cost:cost, popularity:120 + Math.floor(Math.random()*80), duration:48, age:0, produced:true };
+      game.player.contentLibrary.push(item);
+      logNews('Produced an original — exclusive content added.');
+      updateAllUI();
+    }
+
+    function marketResearch(){
+      const cost = 40000;
+      if(game.player.cash < cost) return alert('Not enough cash');
+      game.player.cash -= cost;
+      // reveal actual region demand numbers (we will create a news item with more info)
+      const region = Object.keys(CONFIG.REGIONS)[ Math.floor(Math.random()*Object.keys(CONFIG.REGIONS).length) ];
+      const info = CONFIG.REGIONS[region];
+      logNews(`Market Research (${region}) — top demands: ${Object.entries(info).sort((a,b)=>b[1]-a[1]).slice(0,3).map(x=>x[0]).join(', ')}`);
+      updateAllUI();
+    }
+
+    /**********************
+     * ECONOMY TICK (Month)
+     **********************/
+    function tickMonth(){
+      if(!game.running) return;
+
+      // optional delay if autoplay tick specified
+      if(game.autoplay && game.autoplayMs>0){
+        setTimeout(_tickMonthImpl, game.autoplayMs);
+      } else {
+        _tickMonthImpl();
+      }
+    }
+
+    function _tickMonthImpl(){
+      // increment month/year
+      game.monthCount++;
+      game.month++;
+      if(game.month > CONFIG.MONTHS_PER_YEAR){ game.year++; game.month=1; }
+      // basic pool regen
+      generatePool();
+
+      // rivals act
+      rivalsAct();
+
+      // increase age of player's content & rivals content
+      game.player.contentLibrary.forEach(c => c.age = (c.age||0)+1);
+      game.rivals.forEach(r=> r.contentLibrary.forEach(c=> c.age = (c.age||0)+1));
+
+      // Subscription dynamics:
+      // - base churn
+      // - content freshness: if no new content in last 3 months => increased churn
+      let churn = CONFIG.BASE_CHURN;
+      // determine months since last purchased or produced content
+      const lastActivity = Math.max(0, game.monthCount - Math.max(0,...game.player.contentLibrary.map(c=>c.boughtAtMonth||0)));
+      if(lastActivity > 3) churn += 0.02 * (lastActivity - 3); // extra churn for neglect
+
+      // hosting reduces churn
+      churn -= (game.player.hostingLevel * 0.005);
+      churn = clamp(churn, 0.01, 0.5);
+
+      // growth based on unique genres, advertising, and produced items
+      const uniqueGenres = new Set(game.player.contentLibrary.map(c=>c.genre)).size;
+      let growth = Math.max(0, uniqueGenres * 200 + Math.floor(game.player.adsInvested * CONFIG.AD_INVEST_EFFECT) + Math.floor(game.player.hostingLevel * 300) + Math.floor(Math.random()*300) - Math.floor(churn * 1000));
+
+      // dual model: ad-based inexpensive subs vs premium
+      let subsChange = 0;
+      if(game.player.ad_model.adSupported){
+        // simulate split: more subs for ad-supported, less revenue
+        const adSubsGain = Math.floor(growth * 1.4);
+        const premiumGain = Math.floor(growth * 0.4);
+        subsChange = adSubsGain + premiumGain - Math.floor(game.player.subscribers * churn);
+      } else {
+        subsChange = growth - Math.floor(game.player.subscribers * churn);
+      }
+      game.player.subscribers = Math.max(0, game.player.subscribers + subsChange);
+
+      // Revenue & expenses
+      let income = 0;
+      if(game.player.ad_model.adSupported){
+        // 70% ad-supported, 30% premium distribution (simplified)
+        const adSubs = Math.floor(game.player.subscribers * 0.7);
+        const premSubs = game.player.subscribers - adSubs;
+        income = adSubs * game.player.ad_model.adFee + premSubs * game.player.ad_model.premiumFee;
+      } else {
+        income = game.player.subscribers * game.player.fee;
+      }
+
+      // Variable monthly costs
+      const hostingCost = 5000 * (1 + game.player.hostingLevel);
+      const adsMaintenance = Math.floor(game.player.adsInvested * 0.001);
+      const staff = 20000;
+      const licenseRenewals = game.player.contentLibrary.reduce((s,c)=> s + Math.floor((c.cost||0) * 0.001), 0);
+      const fixedCosts = licenseRenewals;
+      const variableCosts = hostingCost + adsMaintenance + staff;
+      const totalExpenses = fixedCosts + variableCosts;
+
+      // add income and subtract expenses
+      game.player.cash += (income - totalExpenses);
+
+      // automatic retirement: if a license age > duration -> remove
+      const removed = [];
+      game.player.contentLibrary = game.player.contentLibrary.filter(c=>{
+        if(c.age >= (c.duration || 24)){
+          removed.push(c);
+          return false;
+        }
+        return true;
+      });
+      if(removed.length) logNews(`Some licenses expired and were retired: ${removed.map(r=>r.genre).join(', ')}`);
+
+      // random events
+      maybeRandomEvent();
+
+      // check win/lose
+      const winner = checkWinLose();
+
+      // update UI
+      renderHeader();
+      updateAllUI();
+
+      if(winner) {
+        game.running = false;
+        alert(winner);
+      }
+
+      // limit news array length
+      if(game.news.length > 100) game.news.splice(0, game.news.length-100);
+    }
+
+    function checkWinLose(){
+      // check scenario
+      if(game.scenario === 'subs_30m' && game.player.subscribers >= 30000000) return 'You win! 30M monthly subscribers reached!';
+      if(game.scenario === 'cash_1b' && game.player.cash >= 1000000000) return 'You win! $1B cash reserve reached!';
+      if(game.scenario === 'subs_1m' && game.player.subscribers >= 1000000) return 'You win! 1M subscribers reached!';
+      // lose condition simple: cash negative large
+      if(game.player.cash < -5000000) return 'Bankrupt! You lost.';
+      // competitor reaching key threshold
+      for(const r of game.rivals){
+        if(r.subscribers >= 1000000) return `You lost! Competitor ${r.name} reached 1M subscribers first.`;
+      }
+      return null;
+    }
+
+    /**********************
+     * Random Events
+     **********************/
+    function maybeRandomEvent(){
+      // every 3 months chance of event
+      if(game.monthCount - game.lastEventTick < 3) return;
+      if(Math.random() < 0.35){
+        game.lastEventTick = game.monthCount;
+        const pick = Math.random();
+        if(pick < 0.33){
+          // Anime boom
+          // increase popularity for anime on pool and rivals
+          game.pool.forEach(p=> { if(p.genre==='Anime') p.popularity += 40;});
+          game.rivals.forEach(r=> r.subscribers += Math.floor(Math.random()*5000));
+          logNews('Anime Boom! Demand for Anime surges in some regions.');
+        } else if(pick < 0.66){
+          // DDoS
+          const cost = game.player.hostingLevel>0 ? 30000 : 150000;
+          game.player.cash -= cost;
+          logNews(`DDoS attack occurred. ${game.player.hostingLevel>0 ? 'Hosting mitigated part of damage.' : 'Large loss due to weak hosting.'} Paid $${fmt(cost)}.`);
+        } else {
+          // new competitor launch
+          const newName = ['NeoStream','WatchFlex','EchoPlay','Streamio','FluxTV'][Math.floor(Math.random()*5)] + (Math.random()<0.5 ? Math.floor(Math.random()*50) : '');
+          const newR = { id:uid('riv'), name:newName, subscribers: 2000 + Math.floor(Math.random()*5000), contentLibrary:[], adsInvested: Math.floor(Math.random()*20000), hostingLevel: Math.floor(Math.random()*2) };
+          game.rivals.push(newR);
+          logNews(`New competitor launched: ${newName}`);
+        }
+      }
+    }
+
+    /**********************
+     * UI RENDER
+     **********************/
+    function renderHeader(){
+      $('companyHeader').innerText = `${game.player.name} (Fee: $${game.player.fee})`;
+      $('subHeader').innerText = `Year ${game.year} • Month ${game.month}`;
+    }
+
+    function updateAllUI(){
+      // stats
+      $('statCash').innerText = '$' + fmt(Math.max(0,Math.round(game.player.cash)));
+      $('statSubs').innerText = fmt(Math.max(0,Math.round(game.player.subscribers)));
+      // compute income/expenses for display
+      const hostingCost = 5000 * (1 + game.player.hostingLevel);
+      const adsMaintenance = Math.floor(game.player.adsInvested * 0.001);
+      const staff = 20000;
+      const licenseRenewals = game.player.contentLibrary.reduce((s,c)=> s + Math.floor((c.cost||0) * 0.001), 0);
+      const fixedCosts = licenseRenewals;
+      const variableCosts = hostingCost + adsMaintenance + staff;
+      const totalExpenses = fixedCosts + variableCosts;
+
+      let income = 0;
+      if(game.player.ad_model.adSupported){
+        const adSubs = Math.floor(game.player.subscribers * 0.7);
+        const premSubs = game.player.subscribers - adSubs;
+        income = adSubs * game.player.ad_model.adFee + premSubs * game.player.ad_model.premiumFee;
+      } else {
+        income = game.player.subscribers * game.player.fee;
+      }
+      $('statIncome').innerText = '$' + fmt(Math.round(income));
+      $('statExpenses').innerText = '$' + fmt(Math.round(totalExpenses));
+
+      // pool table (available content)
+      const ct = $('contentTable');
+      let html = `<tr><th>Genre</th><th>Cost</th><th>Popularity</th><th>Duration (m)</th><th></th></tr>`;
+      game.pool.forEach(p=>{
+        html += `<tr>
+          <td><span class="genre-badge ${CONFIG.GENRES[p.genre].css}">${CONFIG.GENRES[p.genre].icon} ${p.genre}</span></td>
+          <td>$${fmt(p.cost)}</td>
+          <td>${p.popularity}</td>
+          <td>${p.duration}</td>
+          <td><button class="btn tiny btn-primary" data-buy="${p.id}">Buy</button></td>
+        </tr>`;
+      });
+      ct.innerHTML = html;
+
+      // attach buy listeners (use event delegation)
+      ct.querySelectorAll('button[data-buy]').forEach(btn=>{
+        btn.onclick = ()=> { buyContentFromPool(btn.getAttribute('data-buy')); };
+      });
+
+      // library table
+      const lib = $('libraryTable');
+      let libHtml = `<tr><th>Genre</th><th>Age</th><th>Duration</th><th>Produced</th><th></th></tr>`;
+      game.player.contentLibrary.forEach((c,i)=>{
+        libHtml += `<tr>
+          <td><span class="genre-badge ${CONFIG.GENRES[c.genre].css}">${CONFIG.GENRES[c.genre].icon} ${c.genre}</span></td>
+          <td>${c.age || 0}m</td>
+          <td>${c.duration || '-' }m</td>
+          <td>${c.produced ? 'Yes' : 'No'}</td>
+          <td><button class="btn tiny btn-ghost" data-retire="${i}">Retire</button></td>
+        </tr>`;
+      });
+      lib.innerHTML = libHtml;
+      lib.querySelectorAll('button[data-retire]').forEach(b=> b.onclick = ()=> { const i = parseInt(b.getAttribute('data-retire')); const removed = game.player.contentLibrary.splice(i,1)[0]; logNews(`You retired ${removed.genre}`); updateAllUI(); });
+
+      // finance table
+      const ft = $('financeTable');
+      ft.innerHTML = `<tr><th>Type</th><th>Amount</th></tr>
+        <tr><td>Income</td><td>$${fmt(Math.round(income))}</td></tr>
+        <tr><td>Fixed Costs (licenses)</td><td>$${fmt(Math.round(fixedCosts))}</td></tr>
+        <tr><td>Variable Costs</td><td>$${fmt(Math.round(variableCosts))}</td></tr>
+      `;
+
+      // market share table (player + rivals)
+      const mt = $('marketTable');
+      let totalSubs = game.player.subscribers + game.rivals.reduce((s,r)=>s+r.subscribers,0);
+      let mhtml = `<tr><th>Company</th><th>Subs</th><th>Share</th></tr>`;
+      function barRow(name, subs){
+        const share = totalSubs>0 ? (subs/totalSubs)*100 : 0;
+        return `<tr><td style="width:35%">${name}</td><td style="width:25%">${fmt(Math.round(subs))}</td><td><div class="bar-wrap"><div class="bar-fill" style="width:${share}%">${share.toFixed(1)}%</div></div></td></tr>`;
+      }
+      mhtml += barRow(game.player.name, game.player.subscribers);
+      // ensure rivals sorted by subscribers (desc)
+      game.rivals.sort((a,b)=>b.subscribers - a.subscribers);
+      game.rivals.forEach(r=> mhtml += barRow(r.name, r.subscribers));
+      mt.innerHTML = mhtml;
+
+      // competitors list right column
+      const cr = $('competitorsList');
+      cr.innerHTML='';
+      game.rivals.forEach(r=>{
+        const el = document.createElement('div');
+        el.style.display='flex'; el.style.justifyContent='space-between'; el.style.alignItems='center';
+        el.innerHTML = `<div><strong>${r.name}</strong><div style="font-size:12px;color:var(--muted)">${fmt(Math.round(r.subscribers))} subs</div></div><div><button class="btn tiny btn-ghost" data-boost="${r.id}">View</button></div>`;
+        cr.appendChild(el);
+      });
+
+      // news
+      const nf = $('newsFeed'); nf.innerHTML='';
+      game.news.slice().reverse().forEach(n=>{
+        const div = document.createElement('div'); div.className='item'; div.innerText = n;
+        nf.appendChild(div);
+      });
+
+      // competitors table in left column sorted by subscriber count already ensured
+    }
+
+    function logNews(text){
+      const stamp = `M${game.monthCount}`;
+      game.news.push(`${stamp}: ${text}`);
+      updateAllUI();
+    }
+
+    /**********************
+     * SAVE / LOAD
+     **********************/
+    function saveGame(){
+      try{
+        localStorage.setItem('spm_save', JSON.stringify(game));
+        alert('Game saved locally');
+      }catch(e){ alert('Save failed: ' + e.message); }
+    }
+
+    function loadGame(){
+      try{
+        const s = localStorage.getItem('spm_save');
+        if(!s) return alert('No save found');
+        game = JSON.parse(s);
+        // ensure functions exist again
+        game.running = true;
+        renderHeader();
+        updateAllUI();
+        showOnly('gameScreen');
+        alert('Game loaded');
+      }catch(e){ alert('Load failed: ' + e.message); }
+    }
+
+    /**********************
+     * AUTOPLAY
+     **********************/
+    function toggleAutoplay(){
+      game.autoplay = !game.autoplay;
+      $('btnAutoPlay').innerText = 'Autoplay ' + (game.autoplay ? 'On' : 'Off');
+      if(game.autoplay && game.autoplayMs>0){
+        const loop = setInterval(()=>{
+          if(!game.running || !game.autoplay) { clearInterval(loop); return; }
+          tickMonth();
+        }, game.autoplayMs || 1000);
+      }
+    }
+
+    /**********************
+     * Misc helpers
+     **********************/
+    function updateAllUIFast(){
+      try{ updateAllUI(); } catch(e){ console.error(e); }
+    }
+
+    /**********************
+     * INIT: generate initial pool for menu preview
+     **********************/
+    generatePool();
+    updateAllUIFast();
+
+    // render content pool to menu initially too (so players see)
+    // attach click for start new game when pressing Enter on company name
+    $('inputCompany').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ startNewGame(); }});
+
+    // expose some helper for debugging
+    window.spm = { game, tickMonth, saveGame, loadGame, generatePool, logNews };
+
+  </script>
+</body>
+</html>
