@@ -54,6 +54,7 @@
     .stat { flex:1; padding:12px; border-radius:8px; background:linear-gradient(180deg,#fff,#fbfbff); text-align:center; }
     .stat h4{margin:0;font-size:12px;color:var(--muted)}
     .stat p{margin:6px 0 0;font-size:18px;font-weight:700}
+    .neg { color: var(--bad); }
 
     /* fixed table styles to avoid shifting */
     table { width:100%; border-collapse:collapse; table-layout:fixed; }
@@ -82,6 +83,7 @@
     .btn-ghost { background:transparent; border:1px solid #e6e9ef; color:var(--muted) }
     .btn-primary { background:var(--accent); color:#fff; }
     .tiny { padding:6px 8px; font-size:13px }
+    .btn[disabled]{opacity:.6; cursor:not-allowed}
 
     /* news feed */
     .news { max-height:180px; overflow:auto; padding:8px; display:flex; flex-direction:column; gap:8px; }
@@ -107,18 +109,68 @@
     .muted { color:var(--muted) }
     .positive{color:var(--good)}
     .negative{color:var(--bad)}
+
+    /* === ADDED: overlay styles for Help & Game Over (small, non-intrusive) === */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .overlay .card {
+      background: var(--panel);
+      padding: 18px;
+      border-radius: 12px;
+      max-width: 820px;
+      width: 92%;
+      box-shadow: var(--card-shadow);
+    }
+    .overlay h2 { margin-top: 0; color: var(--accent); }
   </style>
 </head>
 <body>
+
+  <!-- === ADDED: Help overlay (shows before game starts) === -->
+  <div id="helpOverlay" class="overlay" style="display:flex;">
+    <div class="card">
+      <h2>How to Play — Streaming Platform Manager</h2>
+      <p>Welcome! Read these quick tips before you start:</p>
+      <ul>
+        <li><strong>Cash (Available funds)</strong>: your liquid money. <strong>If this drops below $0 you lose the game.</strong></li>
+        <li><strong>Subscribers</strong>: grow them by buying/producing content and investing in ads. More subs = more income.</li>
+        <li><strong>Monthly Income</strong>: calculated from subscribers and plan model.</li>
+        <li><strong>Expenses</strong>: hosting, staff, license renewals and investments — watch them closely.</li>
+        <li>Use <em>Market Research, Ads, Hosting</em> and <em>Producing Originals</em> to influence growth. Content ages and expires.</li>
+      </ul>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button id="btnCloseHelp" class="btn btn-primary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- === ADDED: Game Over overlay === -->
+  <div id="gameOverOverlay" class="overlay" style="display:none;">
+    <div class="card" style="text-align:center;">
+      <h2>💀 Game Over</h2>
+      <p id="gameOverMessage">You ran out of cash.</p>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
+        <button id="btnReturnMenu" class="btn btn-primary">Return to Menu</button>
+      </div>
+    </div>
+  </div>
+
   <div class="app">
 
     <header>
       <img src="SPM_logo.png" class="logo" alt="SPM logo" onerror="this.style.display='none'">
       <h1>Streaming Platform Manager</h1>
       <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-        <button id="btnMenu" class="btn tiny btn-ghost">Main Menu</button>
-        <button id="btnSave" class="btn tiny">Save</button>
-        <button id="btnLoad" class="btn tiny btn-ghost">Load</button>
+        <button id="btnMenu" class="btn tiny btn-ghost" type="button">Main Menu</button>
+        <button id="btnSave" class="btn tiny" type="button">Save</button>
+        <button id="btnLoad" class="btn tiny btn-ghost" type="button">Load</button>
       </div>
     </header>
 
@@ -154,9 +206,10 @@
             </label>
 
             <label style="margin-top:8px">Starting Scenario (win condition)
+              <!-- fixed: value reflects income, label already said "monthly income" -->
               <select id="selectScenario">
-                <option value="subs_30m">30M monthly income</option>
-                <option value="cash_1b">1B cash reserve</option>
+                <option value="income_30m">$30M monthly income</option>
+                <option value="cash_1b">$1B cash reserve</option>
                 <option value="subs_1m">1M subscribers</option>
               </select>
             </label>
@@ -169,16 +222,18 @@
             </label>
 
             <label style="margin-top:8px">Monthly Fee (base for premium) $
-              <input id="inputMonthlyFee" type="number" value="15">
+              <input id="inputMonthlyFee" type="number" value="15" min="0">
             </label>
 
             <label style="margin-top:8px">Content Cap (active licenses)
-              <input id="inputContentCap" type="number" value="8">
+              <input id="inputContentCap" type="number" value="8" min="1">
             </label>
 
             <div style="margin-top:12px;display:flex;gap:8px">
-              <button id="btnStart" class="btn btn-primary">Start Game</button>
-              <button id="btnCredits" class="btn btn-ghost">Credits</button>
+              <button id="btnStart" class="btn btn-primary" type="button">Start Game</button>
+              <button id="btnCredits" class="btn btn-ghost" type="button">Credits</button>
+              <!-- ADDED: Help button in the menu so player can re-open the guide anytime -->
+              <button id="btnHelp" class="btn btn-ghost" type="button">Help</button>
             </div>
           </div>
 
@@ -209,9 +264,9 @@
             <div id="subHeader" style="font-size:13px;color:var(--muted)">Year 1 • Month 1</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
-            <button id="btnMenuFromGame" class="btn btn-ghost tiny">Go to Menu</button>
-            <button id="btnOpenSettings" class="btn tiny btn-ghost">Settings</button>
-            <button id="btnEndTurn" class="btn btn-primary tiny">Next Turn</button>
+            <button id="btnMenuFromGame" class="btn btn-ghost tiny" type="button">Go to Menu</button>
+            <button id="btnOpenSettings" class="btn tiny btn-ghost" type="button">Settings</button>
+            <button id="btnEndTurn" class="btn btn-primary tiny" type="button">Next Turn</button>
           </div>
         </div>
 
@@ -248,10 +303,10 @@
             </table>
 
             <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-              <button id="btnInvestAds" class="btn tiny btn-ghost">Invest in Ads</button>
-              <button id="btnInvestHosting" class="btn tiny btn-ghost">Improve Hosting</button>
-              <button id="btnProduce" class="btn tiny btn-ghost">Produce Original (costly)</button>
-              <button id="btnMarketResearch" class="btn tiny btn-ghost">Market Research ($)</button>
+              <button id="btnInvestAds" class="btn tiny btn-ghost" type="button">Invest in Ads</button>
+              <button id="btnInvestHosting" class="btn tiny btn-ghost" type="button">Improve Hosting</button>
+              <button id="btnProduce" class="btn tiny btn-ghost" type="button">Produce Original (costly)</button>
+              <button id="btnMarketResearch" class="btn tiny btn-ghost" type="button">Market Research ($)</button>
             </div>
           </div>
 
@@ -284,9 +339,9 @@
       <!-- CREDITS -->
       <div id="creditsScreen" class="screen" style="display:none">
         <h3>Credits</h3>
-        <div style="font-size:14px;color:var(--muted)">Developed by: <strong>Your Name</strong></div>
-        <p style="margin-top:12px">Thanks for playing — this is a prototype. Save/Load stored locally.</p>
-        <div style="margin-top:12px"><button id="btnBackFromCredits" class="btn btn-ghost">Back</button></div>
+        <div style="font-size:14px;color:var(--muted)">Developed by: <strong>Ahmed Atef & Max</strong></div>
+        <p style="margin-top:12px">Thanks for playing. Save/Load is stored locally.</p>
+        <div style="margin-top:12px"><button id="btnBackFromCredits" class="btn btn-ghost" type="button">Back</button></div>
       </div>
 
     </div>
@@ -296,9 +351,9 @@
       <div class="panel">
         <h4 style="margin:0 0 8px 0">Quick Controls</h4>
         <div style="display:flex;gap:8px">
-          <button id="btnQuickSave" class="btn tiny btn-primary">Save</button>
-          <button id="btnQuickLoad" class="btn tiny btn-ghost">Load</button>
-          <button id="btnReset" class="btn tiny btn-ghost">Reset</button>
+          <button id="btnQuickSave" class="btn tiny btn-primary" type="button">Save</button>
+          <button id="btnQuickLoad" class="btn tiny btn-ghost" type="button">Load</button>
+          <button id="btnReset" class="btn tiny btn-ghost" type="button">Reset</button>
         </div>
         <hr style="margin:8px 0">
         <div style="display:flex;gap:8px;align-items:center">
@@ -316,7 +371,7 @@
         <h4 style="margin:0 0 8px 0">Settings</h4>
         <label>Month speed (ms) <input id="inputTickMs" type="number" value="0" min="0"></label>
         <div style="margin-top:8px">
-          <button id="btnAutoPlay" class="btn btn-ghost tiny">Autoplay (Off)</button>
+          <button id="btnAutoPlay" class="btn btn-ghost tiny" type="button">Autoplay (Off)</button>
         </div>
       </div>
     </aside>
@@ -371,7 +426,7 @@
         name:'My Company',
         cash:0,
         subscribers:0,
-        contentLibrary:[], // {id, genre, cost, popularity, age, duration, produced:boolean}
+        contentLibrary:[], // {id, genre, cost, popularity, age, duration, produced:boolean, boughtAtMonth:number}
         fee:15,
         contentCap:8,
         adsInvested:0,
@@ -382,7 +437,7 @@
       pool: [],
       news: [],
       difficulty:'medium',
-      scenario:'subs_30m',
+      scenario:'income_30m',
       autoplay:false,
       autoplayMs:0,
       soundOn:true,
@@ -401,7 +456,8 @@
       for (const r in CONFIG.REGIONS){
         const div = document.createElement('div');
         div.style.marginBottom='8px';
-        div.innerHTML = `<strong>${r}</strong><div style="display:flex;gap:6px;margin-top:6px">`+Object.entries(CONFIG.REGIONS[r]).slice(0,4).map(([g,v])=>`<div style="min-width:0;flex:1"><div style="font-size:12px;color:var(--muted)">${g}</div><div class="bar-wrap"><div style="width:${v}%;" class="bar-fill">${v}%</div></div></div>`).join('')+`</div>`;
+        div.innerHTML = `<strong>${r}</strong><div style="display:flex;gap:6px;margin-top:6px">`+
+          Object.entries(CONFIG.REGIONS[r]).slice(0,4).map(([g,v])=>`<div style="min-width:0;flex:1"><div style="font-size:12px;color:var(--muted)">${g}</div><div class="bar-wrap"><div style="width:${v}%" class="bar-fill">${v}%</div></div></div>`).join('')+`</div>`;
         container.appendChild(div);
       }
     }
@@ -440,7 +496,32 @@
     $('btnMarketResearch').addEventListener('click', ()=> marketResearch());
     $('btnAutoPlay').addEventListener('click', toggleAutoplay);
 
+    // ADDED: Help button listener (re-open overlay)
+    if($('btnHelp')) $('btnHelp').addEventListener('click', ()=> { $('helpOverlay').style.display = 'flex'; });
+
     $('toggleSound').addEventListener('change', (e)=> game.soundOn = e.target.checked);
+
+    /**********************
+     * HELPERS (centralized calc)
+     **********************/
+    function computeMonthlyIncome(){
+      if(game.player.ad_model.adSupported){
+        const adSubs = Math.floor(game.player.subscribers * 0.7);
+        const premSubs = game.player.subscribers - adSubs;
+        return adSubs * game.player.ad_model.adFee + premSubs * game.player.ad_model.premiumFee;
+      }
+      return game.player.subscribers * game.player.fee;
+    }
+
+    function computeMonthlyExpenses(){
+      const hostingCost = 5000 * (1 + game.player.hostingLevel);
+      const adsMaintenance = Math.floor(game.player.adsInvested * 0.001);
+      const staff = 20000;
+      const licenseRenewals = game.player.contentLibrary.reduce((s,c)=> s + Math.floor((c.cost||0) * 0.001), 0);
+      const fixedCosts = licenseRenewals;
+      const variableCosts = hostingCost + adsMaintenance + staff;
+      return { fixedCosts, variableCosts, total: fixedCosts + variableCosts };
+    }
 
     /**********************
      * GAME FLOW
@@ -449,7 +530,7 @@
       // read menu values
       const name = $('inputCompany').value.trim() || 'My Company';
       const difficulty = $('selectDifficulty').value;
-      const scenario = $('selectScenario').value;
+      let scenario = $('selectScenario').value;
       const model = $('selectModel').value;
       const fee = parseInt($('inputMonthlyFee').value) || 15;
       const cap = parseInt($('inputContentCap').value) || 8;
@@ -480,12 +561,16 @@
         lastEventTick:0
       };
 
+      // ensure help overlay is closed when starting
+      const help = $('helpOverlay');
+      if(help) help.style.display = 'none';
+
       // update UI
       showOnly('gameScreen');
       renderHeader();
       generatePool();
       updateAllUI();
-      logNews("Game started — good luck!");
+      logNews('Game started — good luck!');
     }
 
     function confirmReturnToMenu(){
@@ -524,15 +609,15 @@
     function rivalsAct(){
       // Each rival buys a license from pool or produces (simple)
       game.rivals.forEach(r=>{
-        // decide to buy based on money (we don't simulate cash for rivals here), but pick a genre strategically
+        // decide to buy based on pool, pick a genre strategically
         if(game.pool.length > 0 && Math.random()>0.3){
-          // smarter AI: pick genre with highest region demand
           const preferred = pickGenreForRival(r);
-          const candidate = game.pool.find(p=>p.genre===preferred) || game.pool[Math.floor(Math.random()*game.pool.length)];
+          const idx = game.pool.findIndex(p=>p.genre===preferred);
+          const candidate = idx>=0 ? game.pool[idx] : game.pool[Math.floor(Math.random()*game.pool.length)];
           if(candidate){
             r.contentLibrary.push({...candidate, owner:r.name});
             // remove from pool
-            game.pool = game.pool.filter(x=>x.id!==candidate.id);
+            game.pool.splice(game.pool.findIndex(x=>x.id===candidate.id),1);
           }
         }
         // grow subscribers for rival
@@ -546,10 +631,8 @@
     }
 
     function pickGenreForRival(rival){
-      // pick genre based on region trend plus rival strategy
       const region = Object.keys(CONFIG.REGIONS)[ Math.floor(Math.random()*Object.keys(CONFIG.REGIONS).length) ];
       const weights = CONFIG.REGIONS[region];
-      // convert to array and pick weighted
       const entries = Object.entries(weights);
       let sum = entries.reduce((s,[_g,v])=>s+v,0);
       let pick = Math.random()*sum;
@@ -583,10 +666,10 @@
      * PLAYER ACTIONS
      **********************/
     function buyContentFromPool(poolId){
-      const c = game.pool.find(p=>p.id===poolId);
-      if(!c) return alert('Content no longer available.');
+      const idx = game.pool.findIndex(p=>p.id===poolId);
+      if(idx===-1) return alert('Content no longer available.');
+      const c = game.pool[idx];
       if(game.player.contentLibrary.length >= game.player.contentCap){
-        // retire oldest automatically
         retireOldestContent();
         logNews('Content cap reached — oldest content retired to free slot.');
       }
@@ -594,14 +677,13 @@
       game.player.cash -= c.cost;
       const item = {...c, age:0, produced:false, boughtAtMonth:game.monthCount};
       game.player.contentLibrary.push(item);
-      // remove from pool
-      game.pool = game.pool.filter(x=>x.id!==c.id);
+      // remove from pool (index-based ensures correct removal if pool mutated)
+      game.pool.splice(idx,1);
       updateAllUI();
     }
 
     function retireOldestContent(){
       if(game.player.contentLibrary.length===0) return;
-      // retire the one with max age (oldest)
       let oldestIdx = 0;
       let maxAge = -1;
       game.player.contentLibrary.forEach((c,i)=>{ if(c.age>maxAge){ maxAge=c.age; oldestIdx=i; }});
@@ -632,10 +714,10 @@
       if(game.player.cash < cost) return alert('Not enough cash for producing original');
       if(game.player.contentLibrary.length >= game.player.contentCap) retireOldestContent();
       game.player.cash -= cost;
-      // produced content is expensive but has high popularity and long duration
       const gkeys = Object.keys(CONFIG.GENRES);
       const g = gkeys[Math.floor(Math.random()*gkeys.length)];
-      const item = { id:uid('prod'), genre:g, cost:cost, popularity:120 + Math.floor(Math.random()*80), duration:48, age:0, produced:true };
+      // fixed: set boughtAtMonth so churn logic recognizes fresh content
+      const item = { id:uid('prod'), genre:g, cost:cost, popularity:120 + Math.floor(Math.random()*80), duration:48, age:0, produced:true, boughtAtMonth:game.monthCount };
       game.player.contentLibrary.push(item);
       logNews('Produced an original — exclusive content added.');
       updateAllUI();
@@ -645,7 +727,6 @@
       const cost = 40000;
       if(game.player.cash < cost) return alert('Not enough cash');
       game.player.cash -= cost;
-      // reveal actual region demand numbers (we will create a news item with more info)
       const region = Object.keys(CONFIG.REGIONS)[ Math.floor(Math.random()*Object.keys(CONFIG.REGIONS).length) ];
       const info = CONFIG.REGIONS[region];
       logNews(`Market Research (${region}) — top demands: ${Object.entries(info).sort((a,b)=>b[1]-a[1]).slice(0,3).map(x=>x[0]).join(', ')}`);
@@ -657,8 +738,6 @@
      **********************/
     function tickMonth(){
       if(!game.running) return;
-
-      // optional delay if autoplay tick specified
       if(game.autoplay && game.autoplayMs>0){
         setTimeout(_tickMonthImpl, game.autoplayMs);
       } else {
@@ -681,26 +760,18 @@
       game.player.contentLibrary.forEach(c => c.age = (c.age||0)+1);
       game.rivals.forEach(r=> r.contentLibrary.forEach(c=> c.age = (c.age||0)+1));
 
-      // Subscription dynamics:
-      // - base churn
-      // - content freshness: if no new content in last 3 months => increased churn
+      // Subscription dynamics
       let churn = CONFIG.BASE_CHURN;
-      // determine months since last purchased or produced content
-      const lastActivity = Math.max(0, game.monthCount - Math.max(0,...game.player.contentLibrary.map(c=>c.boughtAtMonth||0)));
-      if(lastActivity > 3) churn += 0.02 * (lastActivity - 3); // extra churn for neglect
-
-      // hosting reduces churn
+      const activityMonths = Math.max(0, game.monthCount - Math.max(0,...game.player.contentLibrary.map(c=>c.boughtAtMonth||0)));
+      if(activityMonths > 3) churn += 0.02 * (activityMonths - 3);
       churn -= (game.player.hostingLevel * 0.005);
       churn = clamp(churn, 0.01, 0.5);
 
-      // growth based on unique genres, advertising, and produced items
       const uniqueGenres = new Set(game.player.contentLibrary.map(c=>c.genre)).size;
       let growth = Math.max(0, uniqueGenres * 200 + Math.floor(game.player.adsInvested * CONFIG.AD_INVEST_EFFECT) + Math.floor(game.player.hostingLevel * 300) + Math.floor(Math.random()*300) - Math.floor(churn * 1000));
 
-      // dual model: ad-based inexpensive subs vs premium
       let subsChange = 0;
       if(game.player.ad_model.adSupported){
-        // simulate split: more subs for ad-supported, less revenue
         const adSubsGain = Math.floor(growth * 1.4);
         const premiumGain = Math.floor(growth * 0.4);
         subsChange = adSubsGain + premiumGain - Math.floor(game.player.subscribers * churn);
@@ -710,24 +781,8 @@
       game.player.subscribers = Math.max(0, game.player.subscribers + subsChange);
 
       // Revenue & expenses
-      let income = 0;
-      if(game.player.ad_model.adSupported){
-        // 70% ad-supported, 30% premium distribution (simplified)
-        const adSubs = Math.floor(game.player.subscribers * 0.7);
-        const premSubs = game.player.subscribers - adSubs;
-        income = adSubs * game.player.ad_model.adFee + premSubs * game.player.ad_model.premiumFee;
-      } else {
-        income = game.player.subscribers * game.player.fee;
-      }
-
-      // Variable monthly costs
-      const hostingCost = 5000 * (1 + game.player.hostingLevel);
-      const adsMaintenance = Math.floor(game.player.adsInvested * 0.001);
-      const staff = 20000;
-      const licenseRenewals = game.player.contentLibrary.reduce((s,c)=> s + Math.floor((c.cost||0) * 0.001), 0);
-      const fixedCosts = licenseRenewals;
-      const variableCosts = hostingCost + adsMaintenance + staff;
-      const totalExpenses = fixedCosts + variableCosts;
+      const income = computeMonthlyIncome();
+      const { total: totalExpenses } = computeMonthlyExpenses();
 
       // add income and subtract expenses
       game.player.cash += (income - totalExpenses);
@@ -746,7 +801,7 @@
       // random events
       maybeRandomEvent();
 
-      // check win/lose
+      // check win/lose (this is kept but overlay will also be shown via updateAllUI)
       const winner = checkWinLose();
 
       // update UI
@@ -754,8 +809,10 @@
       updateAllUI();
 
       if(winner) {
+        // keep original behavior (alert) AND also show overlay
         game.running = false;
-        alert(winner);
+        try { alert(winner); } catch(e) {}
+        showGameOverOverlay(winner);
       }
 
       // limit news array length
@@ -763,13 +820,13 @@
     }
 
     function checkWinLose(){
-      // check scenario
-      if(game.scenario === 'subs_30m' && game.player.subscribers >= 30000000) return 'You win! 30M monthly subscribers reached!';
+      // compute values once for comparison
+      const income = computeMonthlyIncome();
+      if(game.scenario === 'income_30m' && income >= 30000000) return 'You win! $30M monthly income reached!';
       if(game.scenario === 'cash_1b' && game.player.cash >= 1000000000) return 'You win! $1B cash reserve reached!';
       if(game.scenario === 'subs_1m' && game.player.subscribers >= 1000000) return 'You win! 1M subscribers reached!';
-      // lose condition simple: cash negative large
-      if(game.player.cash < -5000000) return 'Bankrupt! You lost.';
-      // competitor reaching key threshold
+      // CHANGED: player loses as soon as Available funds is below zero
+      if(game.player.cash < 0) return 'Bankrupt! You lost.';
       for(const r of game.rivals){
         if(r.subscribers >= 1000000) return `You lost! Competitor ${r.name} reached 1M subscribers first.`;
       }
@@ -780,24 +837,19 @@
      * Random Events
      **********************/
     function maybeRandomEvent(){
-      // every 3 months chance of event
       if(game.monthCount - game.lastEventTick < 3) return;
       if(Math.random() < 0.35){
         game.lastEventTick = game.monthCount;
         const pick = Math.random();
         if(pick < 0.33){
-          // Anime boom
-          // increase popularity for anime on pool and rivals
           game.pool.forEach(p=> { if(p.genre==='Anime') p.popularity += 40;});
           game.rivals.forEach(r=> r.subscribers += Math.floor(Math.random()*5000));
           logNews('Anime Boom! Demand for Anime surges in some regions.');
         } else if(pick < 0.66){
-          // DDoS
           const cost = game.player.hostingLevel>0 ? 30000 : 150000;
           game.player.cash -= cost;
           logNews(`DDoS attack occurred. ${game.player.hostingLevel>0 ? 'Hosting mitigated part of damage.' : 'Large loss due to weak hosting.'} Paid $${fmt(cost)}.`);
         } else {
-          // new competitor launch
           const newName = ['NeoStream','WatchFlex','EchoPlay','Streamio','FluxTV'][Math.floor(Math.random()*5)] + (Math.random()<0.5 ? Math.floor(Math.random()*50) : '');
           const newR = { id:uid('riv'), name:newName, subscribers: 2000 + Math.floor(Math.random()*5000), contentLibrary:[], adsInvested: Math.floor(Math.random()*20000), hostingLevel: Math.floor(Math.random()*2) };
           game.rivals.push(newR);
@@ -810,33 +862,40 @@
      * UI RENDER
      **********************/
     function renderHeader(){
-      $('companyHeader').innerText = `${game.player.name} (Fee: $${game.player.fee})`;
+      const feeLabel = game.player.ad_model.adSupported ? `${game.player.ad_model.premiumFee} (premium)` : `${game.player.fee}`;
+      $('companyHeader').innerText = `${game.player.name} (Fee: $${feeLabel})`;
       $('subHeader').innerText = `Year ${game.year} • Month ${game.month}`;
+    }
+
+    function showGameOverOverlay(message){
+      const ov = $('gameOverOverlay');
+      if(!ov) return;
+      $('gameOverMessage').innerText = message || 'Game Over';
+      ov.style.display = 'flex';
+      game.running = false;
+    }
+
+    // ADDED: immediate check for losing condition after UI updates
+    function checkImmediateLoseAndShow(){
+      const loser = checkWinLose();
+      if(loser){
+        // show overlay and stop the game
+        showGameOverOverlay(loser);
+      }
     }
 
     function updateAllUI(){
       // stats
-      $('statCash').innerText = '$' + fmt(Math.max(0,Math.round(game.player.cash)));
+      const cashVal = Math.round(game.player.cash);
+      $('statCash').innerText = (cashVal<0?'-$'+fmt(Math.abs(cashVal)):'$'+fmt(cashVal));
+      $('statCash').classList.toggle('neg', cashVal<0);
       $('statSubs').innerText = fmt(Math.max(0,Math.round(game.player.subscribers)));
-      // compute income/expenses for display
-      const hostingCost = 5000 * (1 + game.player.hostingLevel);
-      const adsMaintenance = Math.floor(game.player.adsInvested * 0.001);
-      const staff = 20000;
-      const licenseRenewals = game.player.contentLibrary.reduce((s,c)=> s + Math.floor((c.cost||0) * 0.001), 0);
-      const fixedCosts = licenseRenewals;
-      const variableCosts = hostingCost + adsMaintenance + staff;
-      const totalExpenses = fixedCosts + variableCosts;
 
-      let income = 0;
-      if(game.player.ad_model.adSupported){
-        const adSubs = Math.floor(game.player.subscribers * 0.7);
-        const premSubs = game.player.subscribers - adSubs;
-        income = adSubs * game.player.ad_model.adFee + premSubs * game.player.ad_model.premiumFee;
-      } else {
-        income = game.player.subscribers * game.player.fee;
-      }
-      $('statIncome').innerText = '$' + fmt(Math.round(income));
-      $('statExpenses').innerText = '$' + fmt(Math.round(totalExpenses));
+      // finances
+      const income = Math.round(computeMonthlyIncome());
+      const { fixedCosts, variableCosts, total } = computeMonthlyExpenses();
+      $('statIncome').innerText = '$' + fmt(income);
+      $('statExpenses').innerText = '$' + fmt(Math.round(total));
 
       // pool table (available content)
       const ct = $('contentTable');
@@ -847,14 +906,14 @@
           <td>$${fmt(p.cost)}</td>
           <td>${p.popularity}</td>
           <td>${p.duration}</td>
-          <td><button class="btn tiny btn-primary" data-buy="${p.id}">Buy</button></td>
+          <td><button class="btn tiny btn-primary" data-buy="${p.id}" type="button">Buy</button></td>
         </tr>`;
       });
       ct.innerHTML = html;
 
-      // attach buy listeners (use event delegation)
+      // attach buy listeners (event delegation-like)
       ct.querySelectorAll('button[data-buy]').forEach(btn=>{
-        btn.onclick = ()=> { buyContentFromPool(btn.getAttribute('data-buy')); };
+        btn.onclick = ()=> { btn.disabled=true; buyContentFromPool(btn.getAttribute('data-buy')); };
       });
 
       // library table
@@ -866,7 +925,7 @@
           <td>${c.age || 0}m</td>
           <td>${c.duration || '-' }m</td>
           <td>${c.produced ? 'Yes' : 'No'}</td>
-          <td><button class="btn tiny btn-ghost" data-retire="${i}">Retire</button></td>
+          <td><button class="btn tiny btn-ghost" data-retire="${i}" type="button">Retire</button></td>
         </tr>`;
       });
       lib.innerHTML = libHtml;
@@ -875,7 +934,7 @@
       // finance table
       const ft = $('financeTable');
       ft.innerHTML = `<tr><th>Type</th><th>Amount</th></tr>
-        <tr><td>Income</td><td>$${fmt(Math.round(income))}</td></tr>
+        <tr><td>Income</td><td>$${fmt(income)}</td></tr>
         <tr><td>Fixed Costs (licenses)</td><td>$${fmt(Math.round(fixedCosts))}</td></tr>
         <tr><td>Variable Costs</td><td>$${fmt(Math.round(variableCosts))}</td></tr>
       `;
@@ -885,11 +944,10 @@
       let totalSubs = game.player.subscribers + game.rivals.reduce((s,r)=>s+r.subscribers,0);
       let mhtml = `<tr><th>Company</th><th>Subs</th><th>Share</th></tr>`;
       function barRow(name, subs){
-        const share = totalSubs>0 ? (subs/totalSubs)*100 : 0;
+        const share = totalSubs>0 ? clamp((subs/totalSubs)*100, 0, 100) : 0;
         return `<tr><td style="width:35%">${name}</td><td style="width:25%">${fmt(Math.round(subs))}</td><td><div class="bar-wrap"><div class="bar-fill" style="width:${share}%">${share.toFixed(1)}%</div></div></td></tr>`;
       }
       mhtml += barRow(game.player.name, game.player.subscribers);
-      // ensure rivals sorted by subscribers (desc)
       game.rivals.sort((a,b)=>b.subscribers - a.subscribers);
       game.rivals.forEach(r=> mhtml += barRow(r.name, r.subscribers));
       mt.innerHTML = mhtml;
@@ -900,7 +958,7 @@
       game.rivals.forEach(r=>{
         const el = document.createElement('div');
         el.style.display='flex'; el.style.justifyContent='space-between'; el.style.alignItems='center';
-        el.innerHTML = `<div><strong>${r.name}</strong><div style="font-size:12px;color:var(--muted)">${fmt(Math.round(r.subscribers))} subs</div></div><div><button class="btn tiny btn-ghost" data-boost="${r.id}">View</button></div>`;
+        el.innerHTML = `<div><strong>${r.name}</strong><div style="font-size:12px;color:var(--muted)">${fmt(Math.round(r.subscribers))} subs</div></div><div><button class="btn tiny btn-ghost" type="button">View</button></div>`;
         cr.appendChild(el);
       });
 
@@ -911,7 +969,8 @@
         nf.appendChild(div);
       });
 
-      // competitors table in left column sorted by subscriber count already ensured
+      // ADDED: After every UI update, check immediate lose condition (cash < 0) and show overlay if needed
+      checkImmediateLoseAndShow();
     }
 
     function logNews(text){
@@ -935,7 +994,12 @@
         const s = localStorage.getItem('spm_save');
         if(!s) return alert('No save found');
         game = JSON.parse(s);
-        // ensure functions exist again
+        // migrate older saves: scenario typo fix & defaults
+        if(game.scenario === 'subs_30m') game.scenario = 'income_30m';
+        if(!game.player) game.player = { name:'My Company', cash:0, subscribers:0, contentLibrary:[], fee:15, contentCap:8, adsInvested:0, hostingLevel:0, ad_model:{adSupported:true, adFee:7, premiumFee:15} };
+        if(!Array.isArray(game.rivals)) game.rivals = [];
+        if(!Array.isArray(game.pool)) game.pool = [];
+        // ensure flags
         game.running = true;
         renderHeader();
         updateAllUI();
@@ -949,7 +1013,7 @@
      **********************/
     function toggleAutoplay(){
       game.autoplay = !game.autoplay;
-      $('btnAutoPlay').innerText = 'Autoplay ' + (game.autoplay ? 'On' : 'Off');
+      $('btnAutoPlay').innerText = 'Autoplay ' + (game.autoplay ? '(On)' : '(Off)');
       if(game.autoplay && game.autoplayMs>0){
         const loop = setInterval(()=>{
           if(!game.running || !game.autoplay) { clearInterval(loop); return; }
@@ -971,14 +1035,82 @@
     generatePool();
     updateAllUIFast();
 
-    // render content pool to menu initially too (so players see)
-    // attach click for start new game when pressing Enter on company name
+    // ADDED: Help overlay behavior (close + reopen)
+    const btnCloseHelp = $('btnCloseHelp');
+    if(btnCloseHelp){
+      btnCloseHelp.addEventListener('click', ()=> {
+        const h = $('helpOverlay');
+        if(h) h.style.display = 'none';
+      });
+    }
+    const btnReturnMenu = $('btnReturnMenu');
+    if(btnReturnMenu){
+      btnReturnMenu.addEventListener('click', ()=> {
+        // hide overlay and return to menu
+        const ov = $('gameOverOverlay'); if(ov) ov.style.display = 'none';
+        showOnly('menuScreen');
+        game.running = false;
+      });
+    }
+
+    // keep original Enter-to-start behavior
     $('inputCompany').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ startNewGame(); }});
 
     // expose some helper for debugging
-    window.spm = { game, tickMonth, saveGame, loadGame, generatePool, logNews };
+    window.spm = { game, tickMonth, saveGame, loadGame, generatePool, logNews, showGameOverOverlay };
+
+
+
+
+  // Random event list
+    const events = [
+    // Existing
+    { name: "DDoS Attack 💻", effect: () => { game.player.cash -= 500; alert("🚨 DDoS Attack! You lost $500 handling downtime."); }},
+    { name: "Violent Show Controversy 📺", effect: () => { game.player.subscribers = Math.max(0, game.player.subscribers - 200); alert("⚠️ A violent show hurt your reputation! You lost 200 subscribers."); }},
+    { name: "Award-Winning Show 🏆", effect: () => { game.player.subscribers += 300; alert("⭐ One of your shows won an award! You gained 300 subscribers."); }},
+    { name: "Server Upgrade ⚡", effect: () => { game.player.cash -= 200; game.player.subscribers += 100; alert("⚡ Server upgrade cost $200 but attracted 100 subscribers!"); }},
+
+    // New Actor / Production Events
+    { name: "Famous Actor Departure 🎭", effect: () => { game.player.subscribers = Math.max(0, game.player.subscribers - 400); alert("😢 A famous actor left one of your hit shows! You lost 400 subscribers."); }},
+    { name: "Star Actor Joins 🌟", effect: () => { game.player.cash -= 300; game.player.subscribers += 500; alert("🌟 A star actor joined your productions! You paid $300 but gained 500 subscribers."); }},
+    { name: "Actor Scandal 📰", effect: () => { game.player.subscribers = Math.max(0, game.player.subscribers - 250); alert("📰 An actor scandal went viral! You lost 250 subscribers."); }},
+    { name: "New Talent Discovery 🎤", effect: () => { game.player.subscribers += 200; alert("✨ A fresh new talent joined your shows! You gained 200 subscribers."); }},
+
+    // Platform / Market Events
+    { name: "New Rival Platform ⚔️", effect: () => { game.player.subscribers = Math.max(0, game.player.subscribers - 300); alert("⚔️ A new rival streaming platform launched! You lost 300 subscribers."); }},
+    { name: "Partnership Deal 🤝", effect: () => { game.player.cash += 400; game.player.subscribers += 150; alert("🤝 You signed a big partnership deal! +$400 cash and +150 subscribers."); }},
+    { name: "Government Fine ⚖️", effect: () => { game.player.cash -= 600; alert("⚖️ You were fined by regulators! You lost $600."); }},
+    { name: "Tech Breakthrough 🚀", effect: () => { game.player.cash -= 200; game.player.subscribers += 400; alert("🚀 A new tech upgrade improved streaming quality! Cost $200 but +400 subscribers."); }},
+  ];
+
+  // Track month and schedule next event
+  let currentMonth = 0;
+  let nextEventMonth = getRandomEventMonth();
+
+  function getRandomEventMonth(){
+    // Schedule event 2–6 months from now
+    return currentMonth + Math.floor(Math.random() * 5) + 2;
+  }
+
+  function triggerScheduledEvent(){
+    const event = events[Math.floor(Math.random() * events.length)];
+    event.effect();
+    nextEventMonth = getRandomEventMonth(); // reschedule next event
+  }
+
+  // Wrap tickMonth
+  const _oldTickMonth3 = tickMonth;
+  tickMonth = function(){
+    _oldTickMonth3();
+    currentMonth++;
+    if(currentMonth === nextEventMonth){
+      triggerScheduledEvent();
+    }
+    checkGameOver();
+  }
+
+
 
   </script>
 </body>
 </html>
-
