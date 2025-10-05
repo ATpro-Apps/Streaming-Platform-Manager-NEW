@@ -234,6 +234,7 @@
               <button id="btnCredits" class="btn btn-ghost" type="button">Credits</button>
               <!-- ADDED: Help button in the menu so player can re-open the guide anytime -->
               <button id="btnHelp" class="btn btn-ghost" type="button">Help</button>
+              <button id="btnExit" class="btn btn-ghost" type="button">Exit</button>
             </div>
           </div>
 
@@ -375,6 +376,16 @@
         </div>
       </div>
     </aside>
+
+    
+      <div class="panel">
+        <h4 style="margin:0 0 8px 0">Adjust Monthly Fee</h4>
+        <label>Monthly Fee ($) <input id="inputNewFee" type="number" value="15" min="0"></label>
+        <div style="margin-top:8px">
+          <button id="btnUpdateFee" class="btn btn-primary tiny" type="button">Update Fee</button>
+        </div>
+      </div>
+
 
     <footer class="muted">Streaming Platform Manager • Prototype</footer>
   </div>
@@ -1052,6 +1063,35 @@
         game.running = false;
       });
     }
+
+    
+    // === Added: Exit button ===
+    const btnExit = $('btnExit');
+    if (btnExit) btnExit.addEventListener('click', () => {
+      if (confirm('Return to Main Menu? Unsaved progress will be lost.')) {
+        showOnly('menuScreen');
+        game.running = false;
+      }
+    });
+
+    // === Added: Update Monthly Fee control ===
+    const btnUpdateFee = $('btnUpdateFee');
+    if (btnUpdateFee) btnUpdateFee.addEventListener('click', () => {
+      const val = parseFloat($('inputNewFee').value);
+      if (!isNaN(val) && val >= 0) {
+        game.player.fee = val;
+        if (game.player.ad_model && game.player.ad_model.adSupported) {
+          game.player.ad_model.premiumFee = val;
+        }
+        renderHeader();
+        updateAllUI();
+        logNews('Monthly fee updated to $' + val);
+        alert('Monthly fee updated successfully!');
+      } else {
+        alert('Invalid fee value.');
+      }
+    });
+
 
     // keep original Enter-to-start behavior
     $('inputCompany').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ startNewGame(); }});
